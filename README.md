@@ -42,3 +42,6 @@ Here is the parquet file link: https://drive.google.com/file/d/1SahFUORh8oEP4AeQ
 
 - I've prepared Power BI charts and a dashboard for this data. Here is the Google Drive link to the Power BI output.
 Link: https://drive.google.com/file/d/1edqnEtztEK0-vQrQ2bu1a7SFiozXPDyK/view?usp=sharing
+
+- Quick Presentation made with GenAI (Perplexity)
+  Link: https://www.perplexity.ai/apps/e93b42d6-3b3a-4d44-ac8a-0d5211c34580
