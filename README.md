@@ -13,7 +13,7 @@ NameOrig	      Object	      Sender account ID.
 OldBalanceOrig	Float	        Sender's balance before transaction.
 NewBalanceOrig	Float	        Sender's balance after transaction.
 NameDest	      Object	      Receiver account ID.
-OldBalanceDest	Float	        Receiver's balance before transaction.
+OldBalanceDest	Float	        Receiver's balance before the transaction.
 NewBalanceDest	Float	        Receiver's balance after transaction.
 IsFraud	Integer	Fraud         flag (1 = fraud, 0 = normal).
 IsFlaggedFraud	Integer	      Bank-flagged suspicious transaction (0 or 1)​.
@@ -32,7 +32,13 @@ IsFlaggedFraud	Integer	      Bank-flagged suspicious transaction (0 or 1)​.
 
 ### Version 3
 - Optimised for CPU efficiency with vectorisation for fast EDA visualisations (seconds vs. minutes).
-- Retained top Version 2 models (Decision Tree, CatBoost, XGBoost, Isolation Forest, K-Means) for hybrid CatBoost, matching Version 2 results (0 false negatives, 357 false positives) with lower resource use. Built hybrid pipeline class and saved outputs.​
+- Retained top Version 2 models (Decision Tree, CatBoost, XGBoost, Isolation Forest, K-Means) for hybrid CatBoost, matching Version 2 results (0 false negatives, 357 false positives) with lower resource use. Built a hybrid pipeline class and saved outputs.​
 
 ### Deployment
 Used 1,000-row sample (800 non-fraud, 200 fraud; 9 columns, excluding targets). Developed Streamlit app (app.py) with frontend UI, hybridpipeline.py, and PKL models in a folder. Install CatBoost/Streamlit via pip, run streamlit run app.py for localhost UI: enter transaction data, click predict for hybrid pipeline output.
+
+- Actual JPMORGAN Chase data is a 480 mb  CSV file. This is huge. So I've converted this CSV file into a parquet file and it has become just 260 mb file, so that while working on Python, access retrieval of data can become easier.
+Here is the parquet file link: https://drive.google.com/file/d/1SahFUORh8oEP4AeQ5qve60JBqByrSjfu/view?usp=sharing
+
+- I've prepared Power BI charts and a dashboard for this data. Here is the Google Drive link to the Power BI output.
+Link: https://drive.google.com/file/d/1edqnEtztEK0-vQrQ2bu1a7SFiozXPDyK/view?usp=sharing
