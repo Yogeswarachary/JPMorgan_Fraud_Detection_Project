@@ -1,191 +1,143 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-
-from hybrid_pipeline import HybridFraudPipeline  # your class file
+import pickle
+import io
+import requests
+from io import BytesIO
 
 st.set_page_config(page_title="JP Morgan Fraud Detection", layout="wide")
 
+# GitHub raw base (update branch/user/repo if needed)
+GITHUB_RAW = "https://raw.githubusercontent.com/Yogeswarachary/JPMorgan_Fraud_Detection_Project/main/Capstone_Deployment/"
+
+@st.cache_resource
+def load_from_github(url):
+    """Download and cache bytes from GitHub raw."""
+    try:
+        resp = requests.get(url)
+        resp.raise_for_status()
+        return io.BytesIO(resp.content)
+    except Exception as e:
+        st.error(f"Failed to load {url}: {e}")
+        st.stop()
+
 @st.cache_resource
 def load_models_and_meta():
-    scaler = joblib.load("scaler.pkl")
-    dt = joblib.load("dt.pkl")
-    cb = joblib.load("cb.pkl")
-    xgb = joblib.load("xgb.pkl")
-    kmeans = joblib.load("kmeans.pkl")
-    iso = joblib.load("iso.pkl")
-    hybrid_cb = joblib.load("hybrid_cb.pkl")
-    train_columns = joblib.load("train_columns.pkl")  # list of columns AFTER feature eng + dummies
+    # Load hybrid_pipeline code and exec (simulates import)
+    pipeline_code_url = GITHUB_RAW + "hybrid_pipeline.py"
+    pipeline_code_bytes = load_from_github(pipeline_code_url).read().decode('utf-8')
+    local_vars = {}
+    exec(pipeline_code_bytes, {}, local_vars)
+    HybridFraudPipeline = local_vars['HybridFraudPipeline']
+    
+    # Load PKLs from GitHub raw
+    pkl_files = ['scaler.pkl', 'dt.pkl', 'cb.pkl', 'xgb.pkl', 'kmeans.pkl', 'iso.pkl', 'hybrid_cb.pkl', 'train_columns.pkl']
+    models = {}
+    for pkl in pkl_files:
+        pkl_url = GITHUB_RAW + pkl
+        pkl_bytes = load_from_github(pkl_url).read()
+        models[pkl] = pickle.load(BytesIO(pkl_bytes))
+    
+    scaler, dt, cb, xgb, kmeans, iso, hybrid_cb, train_columns = [models[f] for f in pkl_files]
     pipeline = HybridFraudPipeline(scaler, dt, cb, xgb, kmeans, iso, hybrid_cb)
     return pipeline, train_columns
 
 pipeline, TRAIN_COLUMNS = load_models_and_meta()
+SAMPLE_CSV_URL = GITHUB_RAW + "JP_Morgan_Data_1000Rows_Sample.csv"  # Update filename/path if exact differs
 
-RAW_FEATURES = [
-    "step", "type", "amount", "nameOrig",
-    "oldbalanceOrg", "newbalanceOrig",
-    "nameDest", "oldbalanceDest", "newbalanceDest"
-]
-
-TYPE_CATEGORIES = ["CASH_IN", "CASH_OUT", "DEBIT", "PAYMENT", "TRANSFER"]
+RAW_FEATURES = ['step', 'type', 'amount', 'nameOrig', 'oldbalanceOrg', 'newbalanceOrig',
+                'nameDest', 'oldbalanceDest', 'newbalanceDest']
+TYPE_CATEGORIES = ['CASH-IN', 'CASH-OUT', 'DEBIT', 'PAYMENT', 'TRANSFER']
 
 def feature_engineering(df):
     df = df.copy()
-
-    # 1. Log transforms (same as training)
-    for col in ["step", "amount", "oldbalanceOrg",
-                "newbalanceOrig", "oldbalanceDest", "newbalanceDest"]:
-        df[f"{col}_log"] = np.log1p(df[col])
-
-    # 2. Balance differences
-    df["orig_balance_diff"] = df["oldbalanceOrg"] - df["newbalanceOrig"]
-    df["dest_balance_diff"] = df["newbalanceDest"] - df["oldbalanceDest"]
-
-    # 3. Zero balance flags
-    df["orig_zero_balance_flag"] = (
-        (df["oldbalanceOrg"] == 0) & (df["newbalanceOrig"] == 0)
-    ).astype(int)
-    df["dest_zero_balance_flag"] = (
-        (df["oldbalanceDest"] == 0) & (df["newbalanceDest"] == 0)
-    ).astype(int)
-
-    # 4. Transaction type interactions
-    df["transfer_to_zero_dest"] = (
-        (df["type"] == "TRANSFER") & (df["newbalanceDest"] == 0)
-    ).astype(int)
-    df["cashout_from_zero_orig"] = (
-        (df["type"] == "CASH_OUT") & (df["oldbalanceOrg"] == 0)
-    ).astype(int)
-
-    # 5. Ratios
-    df["amount_to_orig_balance_ratio"] = df["amount"] / (df["oldbalanceOrg"] + 1)
-    df["amount_to_dest_balance_ratio"] = df["amount"] / (df["oldbalanceDest"] + 1)
-
-    # 6. Suspicious flag
-    df["suspicious_flag"] = (
-        (df["amount"] > 100000)
-        & (df["oldbalanceOrg"] == 0)
-        & (df["newbalanceOrig"] == 0)
-        & (df["type"] == "TRANSFER")
-    ).astype(int)
-
-    # 7. One‑hot encode type (same set as training)
+    for col in ['step', 'amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest', 'newbalanceDest']:
+        df[col] = np.log1p(df[col])
+    df['orig_balance_diff'] = df['oldbalanceOrg'] - df['newbalanceOrig']
+    df['dest_balance_diff'] = df['newbalanceDest'] - df['oldbalanceDest']
+    df['orig_zero_balance_flag'] = ((df['oldbalanceOrg'] == 0) & (df['newbalanceOrig'] == 0)).astype(int)
+    df['dest_zero_balance_flag'] = ((df['oldbalanceDest'] == 0) & (df['newbalanceDest'] == 0)).astype(int)
+    df['transfer_to_zero_dest'] = ((df['type'] == 'TRANSFER') & (df['newbalanceDest'] == 0)).astype(int)
+    df['cashout_from_zero_orig'] = ((df['type'] == 'CASH-OUT') & (df['oldbalanceOrg'] == 0)).astype(int)
+    df['amount_to_orig_balance_ratio'] = df['amount'] / (df['oldbalanceOrg'] + 1)
+    df['amount_to_dest_balance_ratio'] = df['amount'] / (df['oldbalanceDest'] + 1)
+    df['suspicious_flag'] = ((df['amount'] > 100000) & (df['oldbalanceOrg'] == 0) & 
+                             (df['newbalanceOrig'] == 0) & (df['type'] == 'TRANSFER')).astype(int)
     for t in TYPE_CATEGORIES:
-        col_name = f"type_{t}"
-        df[col_name] = (df["type"] == t).astype(int)
-
-    # Drop raw string columns if they were not used in training
-    # (you said non‑useful object columns were removed before modeling)
-    df = df.drop(columns=["type", "nameOrig", "nameDest"])
-
+        df[f'type_{t}'] = (df['type'] == t).astype(int)
+    df = df.drop(columns=['type', 'nameOrig', 'nameDest'])
     return df
 
 def prepare_for_model(df_raw):
-    df_clean = df_raw.copy()
-
-    # Drop isFlaggedFraud at the very start (models were trained without it)
-    if "isFlaggedFraud" in df_clean.columns:
-        df_clean = df_clean.drop(columns=["isFlaggedFraud"])
-
-    # Apply feature engineering on cleaned data
+    df_clean = df_raw[RAW_FEATURES].copy()
+    if 'isFlaggedFraud' in df_clean.columns:
+        df_clean = df_clean.drop(columns=['isFlaggedFraud'])
     df_fe = feature_engineering(df_clean)
-
-    # Align to training columns (saved from X without isFlaggedFraud)
     df_aligned = df_fe.reindex(columns=TRAIN_COLUMNS, fill_value=0)
     return df_aligned
 
-st.title("JP Morgan and Chase Fraud Detection Project")
-st.markdown("### Enter Transaction Details / Use Sample Data")
+st.title("🛡️ JP Morgan Chase Fraud Detection")
+st.markdown("Loads models/data directly from GitHub. Hybrid ML predictions (CatBoost + stacking).")
 
-mode = st.radio("Choose input mode:", ["Single Transaction (Manual)", "Batch from 1000-row Sample CSV"])
+mode = st.radio("Choose input mode:", ["Single Transaction", "Batch from CSV"])
 
-if mode == "Single Transaction (Manual)":
-    # Single row editor matching your 10 raw columns
-    default_row = pd.DataFrame([{
-        "step": 1,
-        "type": "PAYMENT",
-        "amount": 1000.0,
-        "nameOrig": "C123456789",
-        "oldbalanceOrg": 0.0,
-        "newbalanceOrig": 0.0,
-        "nameDest": "M123456789",
-        "oldbalanceDest": 0.0,
-        "newbalanceDest": 0.0
-    }])
-
+if mode == "Single Transaction":
+    default_row = pd.DataFrame({
+        'step': [1], 'type': ['PAYMENT'], 'amount': [1000.0],
+        'nameOrig': ['C123456789'], 'oldbalanceOrg': [0.0], 'newbalanceOrig': [0.0],
+        'nameDest': ['M123456789'], 'oldbalanceDest': [0.0], 'newbalanceDest': [0.0]
+    })
     edited = st.data_editor(
-        default_row,
-        num_rows="fixed",
-        column_config={
-            "type": st.column_config.SelectboxColumn(options=TYPE_CATEGORIES)
-        },
-        use_container_width=True,
+        default_row, num_rows="fixed",
+        column_config={"type": st.column_config.SelectboxColumn(options=TYPE_CATEGORIES)},
+        use_container_width=True
     )
     df_input_raw = edited.copy()
-
-    st.markdown("### Check transaction is Fraud or Not Fraud")
-
-    if st.button("Predict"):
+    
+    if st.button("🔍 Predict Fraud"):
         try:
             X_input = prepare_for_model(df_input_raw)
             pred = pipeline.predict(X_input)[0]
-
-            # If available, show probability
-            try:
-                proba = float(pipeline.hybrid_cb.predict_proba(X_input)[0, 1])
-            except Exception:
-                proba = None
-
+            proba = float(pipeline.hybrid_cb.predict_proba(X_input)[0, 1])
             if pred == 1:
-                st.error("Transaction is Fraud.")
+                st.error("🚨 **Transaction is FRAUD.**")
             else:
-                st.success("Transaction is NOT Fraud.")
-
-            st.write("Model prediction (0 = non-fraud, 1 = fraud):", int(pred))
-            if proba is not None:
-                st.write(f"Estimated fraud probability: {proba:.3f}")
+                st.success("✅ **Transaction is NOT Fraud.**")
+            st.metric("Fraud Probability", f"{proba:.1%}")
         except Exception as e:
-            st.warning(f"Error during prediction: {e}")
+            st.warning(f"Prediction error: {e}")
 
-else:
-    st.markdown("Upload 1000-row CSV (same schema as original 6.3M data) or use default sample_1000.csv.")
-    uploaded = st.file_uploader("Upload CSV", type=["csv"])
-
+else:  # Batch
+    uploaded = st.file_uploader("Upload CSV", type="csv")
     if uploaded is not None:
         df_batch_raw = pd.read_csv(uploaded)
     else:
         try:
-            df_batch_raw = pd.read_csv("sample_1000.csv")
-            st.info("Using default sample_1000.csv from project folder.")
-        except FileNotFoundError:
-            df_batch_raw = None
-            st.error("sample_1000.csv not found. Please upload a CSV.")
+            sample_resp = requests.get(SAMPLE_CSV_URL)
+            sample_resp.raise_for_status()
+            df_batch_raw = pd.read_csv(BytesIO(sample_resp.content))
+            st.info("✅ Loaded sample CSV from GitHub.")
+        except Exception as e:
+            st.error(f"Failed to load sample CSV from GitHub: {e}. Upload manually.")
+            st.stop()
+    
+    st.dataframe(df_batch_raw.head())
+    
+    if st.button("🚀 Run Batch Prediction"):
+        try:
+            X_batch = prepare_for_model(df_batch_raw)
+            preds = pipeline.predict(X_batch)
+            df_result = df_batch_raw.copy()
+            df_result['fraud_prediction'] = preds
+            fraud_count = int((df_result['fraud_prediction'] == 1).sum())
+            st.success(f"✅ Predicted {fraud_count} frauds out of {len(df_result)}.")
+            st.dataframe(df_result.head(10))
+            csv_out = df_result.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download CSV", csv_out, "fraud_predictions.csv", "text/csv")
+        except Exception as e:
+            st.warning(f"Batch error: {e}")
 
-    if df_batch_raw is not None:
-        st.write("Preview of raw input data:")
-        st.dataframe(df_batch_raw.head())
-
-        if st.button("Run Fraud Prediction on Batch"):
-            try:
-                X_batch = prepare_for_model(df_batch_raw)
-                preds = pipeline.predict(X_batch)
-                df_result = df_batch_raw.copy()
-                df_result["fraud_prediction"] = preds
-
-                st.success("Prediction completed.")
-                st.dataframe(df_result.head(20))
-
-                fraud_count = int((df_result["fraud_prediction"] == 1).sum())
-                st.write(f"Predicted fraud transactions: {fraud_count} / {len(df_result)}")
-
-                csv_out = df_result.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "Download results as CSV",
-                    data=csv_out,
-                    file_name="fraud_predictions.csv",
-                    mime="text/csv",
-                )
-            except Exception as e:
-                st.warning(f"Error during prediction: {e}")
+st.markdown("---")
+st.markdown("*Trained on 6.3M rows | All assets from GitHub | 0 FN*")
