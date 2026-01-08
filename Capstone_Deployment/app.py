@@ -25,14 +25,34 @@ def load_from_github(url):
 
 @st.cache_resource
 def load_models_and_meta():
-    # Load hybrid_pipeline code and exec (simulates import)
-    pipeline_code_url = GITHUB_RAW + "hybrid_pipeline_code.py"
-    pipeline_code_bytes = load_from_github(pipeline_code_url).read().decode('utf-8')
-    local_vars = {}
-    exec(pipeline_code_bytes, {}, local_vars)
-    HybridFraudPipeline = local_vars['HybridFraudPipeline']
+    # INLINE hybrid_pipeline.py - no external file needed
+    class HybridFraudPipeline:
+        def __init__(self, scaler, dt, cb, xgb, kmeans, iso, hybrid_cb):
+            self.scaler = scaler
+            self.dt = dt
+            self.cb = cb
+            self.xgb = xgb
+            self.kmeans = kmeans
+            self.iso = iso
+            self.hybrid_cb = hybrid_cb
+        
+        def preprocess(self, X):
+            if 'isFraud' in X.columns:
+                X = X.drop(columns=['isFraud'])
+            X_scaled = self.scaler.transform(X)
+            dt_pred = self.dt.predict(X_scaled).reshape(-1, 1)
+            cb_pred = self.cb.predict(X_scaled).reshape(-1, 1)
+            xgb_pred = self.xgb.predict(X_scaled).reshape(-1, 1)
+            clusters = self.kmeans.predict(X_scaled).reshape(-1, 1)
+            anomaly = self.iso.decision_function(X_scaled).reshape(-1, 1)
+            X_hybrid = np.hstack([X_scaled, dt_pred, cb_pred, xgb_pred, clusters, anomaly])
+            return X_hybrid
+        
+        def predict(self, X):
+            X_hybrid = self.preprocess(X)
+            return self.hybrid_cb.predict(X_hybrid)
     
-    # Load PKLs from GitHub raw
+    # Load PKLs only
     pkl_files = ['scaler.pkl', 'dt.pkl', 'cb.pkl', 'xgb.pkl', 'kmeans.pkl', 'iso.pkl', 'hybrid_cb.pkl', 'train_columns.pkl']
     models = {}
     for pkl in pkl_files:
@@ -142,4 +162,5 @@ else:  # Batch
 
 st.markdown("---")
 st.markdown("*Trained on 6.3M rows | All assets from GitHub | 0 FN*")
+
 
