@@ -26,7 +26,7 @@ def load_from_github(url):
 @st.cache_resource
 def load_models_and_meta():
     # Load hybrid_pipeline code and exec (simulates import)
-    pipeline_code_url = GITHUB_RAW + "hybrid_pipeline.py"
+    pipeline_code_url = GITHUB_RAW + "hybrid_pipeline_code.py"
     pipeline_code_bytes = load_from_github(pipeline_code_url).read().decode('utf-8')
     local_vars = {}
     exec(pipeline_code_bytes, {}, local_vars)
@@ -45,7 +45,8 @@ def load_models_and_meta():
     return pipeline, train_columns
 
 pipeline, TRAIN_COLUMNS = load_models_and_meta()
-SAMPLE_CSV_URL = GITHUB_RAW + "JP_Morgan_Data_1000Rows_Sample.csv"  # Update filename/path if exact differs
+SAMPLE_CSV_URL = GITHUB_RAW + "JPMorgan_Data_1000Rows_Sample.csv" 
+# https://raw.githubusercontent.com/Yogeswarachary/JPMorgan_Fraud_Detection_Project/main/Capstone_Deployment/JPMorgan_Data_1000Rows_Sample.csv
 
 RAW_FEATURES = ['step', 'type', 'amount', 'nameOrig', 'oldbalanceOrg', 'newbalanceOrig',
                 'nameDest', 'oldbalanceDest', 'newbalanceDest']
@@ -141,3 +142,4 @@ else:  # Batch
 
 st.markdown("---")
 st.markdown("*Trained on 6.3M rows | All assets from GitHub | 0 FN*")
+
