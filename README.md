@@ -32,7 +32,18 @@ IsFlaggedFraud	Integer	      Bank-flagged suspicious transaction (0 or 1)​.
 
 ### Version 3
 - Optimised for CPU efficiency with vectorisation for fast EDA visualisations (seconds vs. minutes).
-- Retained top Version 2 models (Decision Tree, CatBoost, XGBoost, Isolation Forest, K-Means) for hybrid CatBoost, matching Version 2 results (0 false negatives, 357 false positives) with lower resource use. Built a hybrid pipeline class and saved outputs.​
+- Retained top Version 2 models (Decision Tree, CatBoost, XGBoost, Isolation Forest, K-Means) for hybrid CatBoost, matching Version 2 results (0 false negatives, 357 false positives) with lower resource use. Built a hybrid pipeline class and saved outputs.
+
+### Version 4
+- **From Prototypes to Production**: While Versions 1-3 achieved zero False Negatives, research (and community feedback from Reddit) suggested this was likely due to data leakage.
+- **Version 4 (Best Practice)**: To resolve leakage, I implemented Scikit-Learn Pipelines to encapsulate the entire workflow. All EDA steps are now wrapped in custom functions, ensuring the code is modular, reusable, and follows industry standards.
+- **Performance**: Version 4 is significantly faster than previous iterations. It effectively eliminates data leakage, achieving a high-performance balance with minimal False Positives and only 2-3 False Negatives.
+
+### Specific Deployement for the Version 4
+- Standalone App: I’ve created a dedicated repository, JP_Morgan_and_Chase_Fraud_Detection_Deployment (link: https://github.com/Yogeswarachary/JP_Morgan_and_Chase_Fraud_Detection_Deployment), which houses the Streamlit application.
+- Model Implementation: This deployment uses the best-performing models (saved as .pkl files) from Version 4.
+- Handling Data Constraints: Since the original 6.3M row dataset is private, the deployment runs on a 10,000-row synthetic dataset generated via NumPy. It perfectly mirrors the original data patterns.
+- Result Accuracy: By adjusting model thresholds, the system detects nearly all fraud cases. While the smaller data size (10k rows) can lead to a slight increase in False Positives, these are managed via Tiered Risk Actions (Block, Review, Allow).​
 
 ### Deployment
 Used 1,000-row sample (800 non-fraud, 200 fraud; 9 columns, excluding targets). Developed Streamlit app (app.py) with frontend UI, hybridpipeline.py, and PKL models in a folder. Install CatBoost/Streamlit via pip, run streamlit run app.py for localhost UI: enter transaction data, click predict for hybrid pipeline output.
