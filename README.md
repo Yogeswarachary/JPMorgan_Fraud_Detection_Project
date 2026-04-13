@@ -1,4 +1,5 @@
 # JP Morgan Chase Fraud Detection Project
+
 ### **Overview**
 This project detects fraudulent transactions using historical data from JPMorgan Chase, addressing the challenge of identifying fraud amid millions of daily online payments. Banks rely on advanced software to flag suspicious activities, as even minor fraud causes significant losses. The goal focuses on predicting future fraud using a dataset of 6.36 million rows across 11 columns from a 480 MB CSV file.​
 
@@ -20,24 +21,30 @@ IsFlaggedFraud	Integer	      Bank-flagged suspicious transaction (0 or 1)​.
 
 > **Out of 6.36 million transactions, the bank flagged 16 as fraud via IsFlaggedFraud, while customer feedback identified 8,213 actual frauds in IsFraud.​**
 
-## Project Versions
-### Version 1
-- Performed EDA, converted CSV to Parquet (480 MB to 240 MB), cleaned data (no nulls/duplicates), analyzed outliers via boxplots (e.g., 102,688 in Step), applied log transformations, engineered 31 features (e.g., balance diffs, zero flags), used one-hot encoding, SMOTE on training data (5M to 10M rows), and tested models like Random Forest, XGBoost, Isolation Forest, Logistic Regression, and hybrids.
-- Models showed trade-offs in false positives/negatives, with high compute times (up to 40+ minutes) due to SMOTE.​
+#### Version 1: Initial Approach (SMOTE)
+- **Methodology**: Utilized SMOTE (Synthetic Minority Over-sampling Technique) to handle class imbalance.
+- **Challenge**: The dataset tripled in size, leading to significant computational overhead. Model execution took 40–60 minutes per model, with the full notebook requiring 6–7 hours.
 
-### Version 2
-- Mirrored EDA/feature engineering but skipped SMOTE, using ScalePosWeight (773) instead for supervised models.
-- Tested Logistic Regression, Decision Tree, Naive Bayes, LightGBM, CatBoost (best at 76-80 precision, 2-3 false negatives, 401-506 false positives), XGBoost, Isolation Forest, K-Means;
-- hybrid CatBoost achieved 0 false negatives and 357 false positives in 15-20 minutes. Created pipeline, saved PKL models, and generated predictions.​
+#### Version 2: Algorithmic Optimization
+- **Methodology**: Replaced SMOTE with Scale_Pos_Weight for CatBoost and LightGBM.
+- **Results**: Execution time dropped to 4–5 hours. Achieved a milestone of near-zero False Negatives using a Hybrid CatBoost model.
 
-### Version 3
-- Optimised for CPU efficiency with vectorisation for fast EDA visualisations (seconds vs. minutes).
-- Retained top Version 2 models (Decision Tree, CatBoost, XGBoost, Isolation Forest, K-Means) for hybrid CatBoost, matching Version 2 results (0 false negatives, 357 false positives) with lower resource use. Built a hybrid pipeline class and saved outputs.
+#### Version 3: Streamlining for Deployment 
+- **Methodology**: Retained Version 2's EDA but filtered for only the top-performing models.
+- **Results**: Execution time reduced to under 3.5 hours. Exported models and EDA steps as PKL files to power a Streamlit deployment.
 
-### Version 4
-- **From Prototypes to Production**: While Versions 1-3 achieved zero False Negatives, research (and community feedback from Reddit) suggested this was likely due to data leakage.
-- **Version 4 (Best Practice)**: To resolve leakage, I implemented Scikit-Learn Pipelines to encapsulate the entire workflow. All EDA steps are now wrapped in custom functions, ensuring the code is modular, reusable, and follows industry standards.
-- **Performance**: Version 4 is significantly faster than previous iterations. It effectively eliminates data leakage, achieving a high-performance balance with minimal False Positives and only 2-3 False Negatives.
+#### Version 4: The "Indium Standard" Refactor (Final Version)
+- **The Challenge**: Testing on synthetic/live data revealed poor precision and potential overfitting despite high training scores.
+- **The Solution**: I performed a gap analysis against the high-standard engineering practices used by Indium Software (Indium Tech). By aligning my workflow with Indium’s industry expectations, I implemented the following critical upgrades:
+  > **Modular Architecture**: Wrapped all EDA and processing steps into functions, reducing EDA execution time by 90% (now under 30 minutes).
+
+  > **Leakage Prevention**: Integrated Scikit-Learn Pipelines to ensure strict separation between training and validation, eliminating data     leakage and improving real-world normalization.
+
+  > **Business Impact Logic**: Added financial metrics to quantify "Total Fraud Loss Prevented," a mandatory standard for FinTech projects at   firms like Indium.
+
+  > **Performance**: The entire pipeline (EDA + ML) now runs in just 1.5 hours. The refined Hybrid CatBoost model maintains an elite balance:   only 3 False Negatives against 94 False Positives.
+
+  > **Deployment Success**: The updated PKL files now show high precision on synthetic data. By adjusting decision thresholds, the model        effectively identifies fraud patterns in real-time scenarios.
 
 ### Specific Deployement for the Version 4
 - Standalone App: I’ve created a dedicated repository, JP_Morgan_and_Chase_Fraud_Detection_Deployment (link: https://github.com/Yogeswarachary/JP_Morgan_and_Chase_Fraud_Detection_Deployment), which houses the Streamlit application.
